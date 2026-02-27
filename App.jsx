@@ -257,19 +257,19 @@ export default function App() {
     const topDonors = [...donations]
       .sort((a, b) => b.amount - a.amount).slice(0, 3)
       .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`).join("\n");
-   const msg =
-`⚽ *Sundays' Boys* ⚽
+  const msg =
+`\\u26BD *Sundays' Boys* \\u26BD
 ━━━━━━━━━━━━━━━━━━━
-💚 Contribute for better ball and bibs
+\\uD83D\\uDC9A Contribute for better ball and bibs
 
-🏦 Raised: ₹${fmt(total)} of ₹${fmt(goal)}
+\\uD83C\\uDFE6 Raised: ₹${fmt(total)} of ₹${fmt(goal)}
 ${bar} ${pct}% there!
-🎯 Just ₹${fmt(goal - total)} more to go!
+\\uD83C\\uDFAF Just ₹${fmt(goal - total)} more to go!
 
-${topDonors ? `🌟 *Top Ballers*\n${topDonors}\n` : ""}━━━━━━━━━━━━━━━━━━━
-💸 Pay via GPay: 7013839578 (Uma)
+${topDonors ? `\\uD83C\\uDF1F *Top Ballers*\\n${topDonors}\\n` : ""}━━━━━━━━━━━━━━━━━━━
+\\uD83D\\uDCB8 Pay via GPay: 7013839578 (Uma)
 
-Let’s close this fast 🔥
+Let’s close this fast \\uD83D\\uDD25
 #SundaysBoys`;
     window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
   }
