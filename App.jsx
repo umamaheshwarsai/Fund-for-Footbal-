@@ -253,32 +253,38 @@ export default function App() {
   }
 
   function shareWhatsApp() {
-    const bar = "█".repeat(Math.floor(pct / 10)) + "░".repeat(10 - Math.floor(pct / 10));
-    const topDonors = [...donations]
-      .sort((a, b) => b.amount - a.amount).slice(0, 3)
-      .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`).join("\n");
-  const msg =
-`⚽ *Sundays' Boys* ⚽
+  const bar = "█".repeat(Math.floor(pct / 10)) + "░".repeat(10 - Math.floor(pct / 10));
 
-💚 Contribute for better ball and bibs
+  const topDonors = [...donations]
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 3)
+    .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`)
+    .join("\n");
 
-🏦 Raised: ₹${fmt(total)} of ₹${fmt(goal)}
-${bar} ${pct}% there!
-🎯 Just ₹${fmt(goal - total)} more to go!
+  const msgLines = [
+    "⚽ Sundays' Boys ⚽",
+    "",
+    "💚 Contribute for better ball and bibs",
+    "",
+    `🏦 Raised: ₹${fmt(total)} of ₹${fmt(goal)}`,
+    `${bar} ${pct}% there!`,
+    `🎯 Just ₹${fmt(goal - total)} more to go!`,
+    "",
+    "🌟 Top Ballers",
+    topDonors,
+    "",
+    "💸 Pay via GPay: 7013839578 (Uma)",
+    "",
+    "🔥 Let's close this fast!",
+    "#SundaysBoys"
+  ];
 
-🌟 *Top Ballers*
-${topDonors}
+  const msg = msgLines.join("\n");
 
-💸 Pay via GPay: 7013839578 (Uma)
+  const url = "https://api.whatsapp.com/send?text=" + encodeURIComponent(msg);
 
-🔥 Let's close this fast!
-#SundaysBoys`;
-   window.open(
-  "https://api.whatsapp.com/send?text=" + encodeURIComponent(msg),
-  "_blank"
-);
-  }
-
+  window.open(url, "_blank");
+}
   const iS = {
     width: "100%", background: "rgba(8,13,8,0.8)", border: "1px solid #1a2e1a",
     borderRadius: 10, color: "#e8f5e8", fontFamily: "inherit",
