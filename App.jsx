@@ -273,8 +273,8 @@ ${topDonors}
 
 🔥 Let's close this fast!
 #SundaysBoys`;
-    window.open(
-  "https://wa.me/?text=" + encodeURIComponent(msg),
+   window.open(
+  "https://api.whatsapp.com/send?text=" + encodeURIComponent(msg),
   "_blank"
 );
   }
