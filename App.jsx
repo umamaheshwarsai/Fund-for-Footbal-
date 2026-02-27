@@ -5,7 +5,7 @@ const JSONBIN_BIN_ID = "69a19979d0ea881f40deeec6";
 const JSONBIN_API_KEY = "$2a$10$5Ms12r9fbKUkzrmyLlxL.uqNxc3zrKcfICnPpTDM7kLYkBLyz0mIq";
 // ─────────────────────────────────────────────────────────────────────────
 
-const GOAL_AMOUNT = 50000;
+const GOAL_AMOUNT = 10000;
 const EMOJIS = ["⚽","🏆","🎯","💪","🔥","✨","👏","🌟","🎖️","💚"];
 
 async function fetchData() {
@@ -258,14 +258,19 @@ export default function App() {
       .sort((a, b) => b.amount - a.amount).slice(0, 3)
       .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`).join("\n");
     const msg =
-`⚽ *Sundays' Boys — Fund Update*
-_Contribute for better ball and bibs_
+`⚽ *Sundays' Boys* ⚽
 ━━━━━━━━━━━━━━━━━━━
-💰 *₹${fmt(total)}* raised of ₹${fmt(goal)}
-${bar} *${pct}%*
-👥 ${donations.length} donors · Avg ₹${fmt(avg)}
-${topDonors ? `\n🌟 *Top Contributors*\n${topDonors}\n` : ""}━━━━━━━━━━━━━━━━━━━
-Send via GPay & drop your name! 🙏💚`;
+💚 Contribute for better ball and bibs
+
+🏦 Raised: ₹${fmt(total)} of ₹${fmt(goal)}
+${bar} ${pct}% there!
+🎯 Just ₹${fmt(goal - total)} more to go!
+
+${topDonors ? `🌟 *Top Ballers*\n${topDonors}\n` : ""}━━━━━━━━━━━━━━━━━━━
+💸 Pay via GPay: 7013839578 (Uma)
+
+Let’s close this fast 🔥
+#SundaysBoys`;
     window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
   }
 
