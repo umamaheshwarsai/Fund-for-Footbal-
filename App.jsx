@@ -256,32 +256,30 @@ export default function App() {
   const bar = "█".repeat(Math.floor(pct / 10)) + "░".repeat(10 - Math.floor(pct / 10));
 
   const topDonors = [...donations]
+    .filter(d => d.amount > 0)
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 3)
     .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`)
     .join("\n");
 
-  const msgLines = [
-    "⚽ Sundays' Boys ⚽",
-    "",
-    "💚 Contribute for better ball and bibs",
-    "",
-    `🏦 Raised: ₹${fmt(total)} of ₹${fmt(goal)}`,
-    `${bar} ${pct}% there!`,
-    `🎯 Just ₹${fmt(goal - total)} more to go!`,
-    "",
-    "🌟 Top Ballers",
-    topDonors,
-    "",
-    "💸 Pay via GPay: 7013839578 (Uma)",
-    "",
-    "🔥 Let's close this fast!",
-    "#SundaysBoys"
-  ];
+  const msg = 
+`⚽ Sundays' Boys ⚽
 
-  const msg = msgLines.join("\n");
+💚 Contribute for better ball and bibs
 
-  const url = "https://api.whatsapp.com/send?text=" + encodeURIComponent(msg);
+🏦 Raised: ₹${fmt(total)} of ₹${fmt(goal)}
+${bar} ${pct}% there!
+🎯 Just ₹${fmt(goal - total)} more to go!
+
+🌟 Top Ballers
+${topDonors || "Be the first one! 💪"}
+
+💸 Pay via GPay: 7013839578 (Uma)
+
+🔥 Let's close this fast!
+#SundaysBoys`;
+
+  const url = "https://wa.me/?text=" + encodeURIComponent(msg);
 
   window.open(url, "_blank");
 }
