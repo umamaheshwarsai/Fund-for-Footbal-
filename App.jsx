@@ -257,7 +257,7 @@ export default function App() {
     const topDonors = [...donations]
       .sort((a, b) => b.amount - a.amount).slice(0, 3)
       .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`).join("\n");
-    const msg =
+   const msg =
 `⚽ *Sundays' Boys* ⚽
 ━━━━━━━━━━━━━━━━━━━
 💚 Contribute for better ball and bibs
