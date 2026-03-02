@@ -131,18 +131,7 @@ function FootballProgress({ total, maxAmount }) {
                 transition: "background 0.4s",
                 margin: "0 auto",
               }} />
-              {/* Emoji above */}
-              <div style={{
-                position: "absolute",
-                bottom: 16,
-                left: "50%",
-                transform: "translateX(-50%)",
-                fontSize: 18,
-                opacity: m.unlocked ? 1 : 0.3,
-                transition: "opacity 0.4s",
-                whiteSpace: "nowrap",
-                filter: m.unlocked ? "drop-shadow(0 0 6px rgba(170,255,68,0.6))" : "none",
-              }}>{m.emoji}</div>
+
               {/* Amount label below */}
               <div style={{
                 position: "absolute",
@@ -159,20 +148,24 @@ function FootballProgress({ total, maxAmount }) {
           ))}
         </div>
 
-        {/* Stud (runner) */}
+        {/* Dribbling player */}
         <div style={{
           position: "absolute",
-          bottom: 8,
+          bottom: 4,
           left: `calc(${pos}% + 10px)`,
           transition: "left 0.9s cubic-bezier(.23,1,.32,1)",
           display: "flex", flexDirection: "column", alignItems: "center",
           zIndex: 4,
         }}>
           <div style={{
-            fontSize: 22, lineHeight: 1,
+            fontSize: 24, lineHeight: 1,
             animation: total > 0 ? "playerRun 0.5s steps(2) infinite" : "none",
-            filter: "drop-shadow(0 2px 6px rgba(170,255,68,0.5))",
-          }}>👟</div>
+            filter: "drop-shadow(0 2px 6px rgba(170,255,68,0.4))",
+          }}>🏃</div>
+          <div style={{
+            fontSize: 13, lineHeight: 1, marginTop: -2,
+            animation: total > 0 ? "ballRoll 0.4s linear infinite" : "none",
+          }}>⚽</div>
         </div>
 
         {/* Start flag */}
@@ -228,6 +221,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [tab, setTab] = useState("log");
   const [celebrate, setCelebrate] = useState(false);
+  const [rain, setRain] = useState(null); // null | { emoji, count }
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -278,7 +272,11 @@ export default function App() {
     const newTotal = prevTotal + amt;
     const justUnlocked = MILESTONES.find(m => prevTotal < m.amount && newTotal >= m.amount);
     if (justUnlocked) {
-      setTimeout(() => showToast(`${justUnlocked.emoji} ${justUnlocked.label} unlocked! 🎉`), 500);
+      setTimeout(() => {
+        showToast(`${justUnlocked.emoji} ${justUnlocked.label} unlocked! 🎉`);
+        setRain({ emoji: justUnlocked.emoji, count: 30 });
+        setTimeout(() => setRain(null), 3500);
+      }, 300);
     }
     if (prevTotal < GOAL_AMOUNT && newTotal >= GOAL_AMOUNT) {
       setCelebrate(true);
@@ -346,6 +344,22 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
     }}>
       <PitchBackground />
       <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "radial-gradient(ellipse at 50% 0%, rgba(8,20,8,0.7) 0%, rgba(8,13,8,0.92) 70%)" }} />
+
+      {/* Milestone Rain */}
+      {rain && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 90, pointerEvents: "none", overflow: "hidden" }}>
+          {Array.from({ length: rain.count }).map((_, i) => (
+            <div key={i} style={{
+              position: "absolute",
+              left: `${Math.random() * 100}%`,
+              top: "-40px",
+              fontSize: Math.random() * 14 + 16,
+              animation: `rainFall ${Math.random() * 1.5 + 1.5}s linear ${Math.random() * 1.2}s forwards`,
+              opacity: 0,
+            }}>{rain.emoji}</div>
+          ))}
+        </div>
+      )}
 
       {/* Celebration */}
       {celebrate && (
@@ -531,7 +545,9 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
 
       <style>{`
         @keyframes playerRun { 0%{transform:scaleX(1)} 50%{transform:scaleX(-1)} }
+        @keyframes ballRoll { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
         @keyframes ballBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        @keyframes rainFall { 0%{opacity:1;transform:translateY(0) rotate(0deg)} 100%{opacity:0.3;transform:translateY(110vh) rotate(360deg)} }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         @keyframes slideDown { from{opacity:0;transform:translate(-50%,-12px)} to{opacity:1;transform:translate(-50%,0)} }
         @keyframes pop { 0%{transform:scale(0.4);opacity:0} 70%{transform:scale(1.2)} 100%{transform:scale(1);opacity:1} }
