@@ -38,14 +38,14 @@ function getPurchaseStatus(purchased, total) {
   const done = MILESTONES.filter(m => purchased.find(p => p.id === m.id));
   const next = MILESTONES.find(m => !purchased.find(p => p.id === m.id));
   const spentOnPurchases = done.reduce((s, m) => s + m.cost, 0);
-  const remaining = next ? (next.amount - total) : 0;
+  const available = Math.max(0, total - spentOnPurchases);
 
   let lines = [];
   if (done.length > 0) {
     lines.push(`✅ *Purchased:* ${done.map(m => `${m.emoji} ${m.label}`).join(", ")}`);
   }
   if (next) {
-    const gap = next.amount - total;
+    const gap = Math.max(0, next.cost - available);
     if (gap <= 0) {
       lines.push(`🎯 Ready to buy: ${next.emoji} ${next.label}!`);
     } else {
@@ -92,39 +92,32 @@ function FootballProgress({ total, purchased }) {
   const purchasedItems = MILESTONES.filter(m => purchased.find(p => p.id === m.id));
   const nextItem = MILESTONES.find(m => !purchased.find(p => p.id === m.id));
 
-  // Spent on purchased items
-  const spent = purchasedItems.reduce((s, m) => s + m.cost, 0);
-  // How much of current total is available toward next item
-  const available = Math.max(0, total - spent);
-  const nextCost = nextItem ? nextItem.cost : 1;
-  const pct = nextItem ? Math.min(100, (available / nextCost) * 100) : 100;
+  // Progress resets per milestone using INCREMENTAL cost.
+  // e.g. Ball1 costs ₹3K. Ball2 costs ₹2K extra (₹5K - ₹3K).
+  // Once Ball1 is purchased, bar goes 0 → ₹2K using money raised since then.
+  // "total" here is net (donations minus expenses), so it naturally reflects spending.
+  const purchasedCost = purchasedItems.reduce((s, m) => s + m.cost, 0);
+  const nextCost = nextItem ? nextItem.cost : GOAL_AMOUNT;
+  // Money available toward next item = total raised minus what was spent on purchased items
+  const available = Math.max(0, total - purchasedCost);
+  const pct = Math.min(100, (available / nextCost) * 100);
   const pos = Math.min(pct, 91);
+  const toGo = Math.max(0, nextCost - available);
 
-  // Dot positions are relative to the current progress segment.
-  // The fill goes from 0 → 100% representing spent → spent+nextCost.
-  // Each milestone dot sits at ((m.amount - spent) / nextCost) * 100 on that scale.
-  // Purchased dots go to the left (0%), future ones go proportionally right.
   const milestonePos = MILESTONES.map((m) => {
     const isPurchased = !!purchased.find(p => p.id === m.id);
     const isNext = nextItem && nextItem.id === m.id;
-    // Position on the current fill scale
     let dotPct;
     if (isPurchased) {
-      dotPct = 0; // behind start — don't show on track
+      dotPct = 0;
     } else if (!nextItem) {
       dotPct = 100;
     } else {
-      // How far into the current segment is this milestone?
-      dotPct = Math.min(100, ((m.amount - spent) / nextCost) * 100);
+      // Position relative to incremental range for next item only
+      dotPct = isNext ? 100 : Math.min(200, ((m.amount - (nextItem ? nextItem.amount - nextItem.cost : 0)) / nextCost) * 100);
     }
-    return {
-      ...m,
-      dotPct,
-      isPurchased,
-      isNext,
-      unlocked: total >= m.amount,
-    };
-  }).filter(m => !m.isPurchased); // hide purchased dots from track
+    return { ...m, dotPct, isPurchased, isNext, unlocked: total >= m.amount };
+  }).filter(m => !m.isPurchased);
 
   return (
     <div style={{ padding: "18px 0 10px", userSelect: "none" }}>
@@ -132,7 +125,7 @@ function FootballProgress({ total, purchased }) {
       {nextItem && (
         <div style={{ fontSize: 11, color: "#3a5a3a", marginBottom: 6, letterSpacing: 0.5 }}>
           Saving for: <span style={{ color: "#aaff44", fontWeight: 700 }}>{nextItem.emoji} {nextItem.label}</span>
-          <span style={{ color: "#2e4a2e" }}> · ₹{fmt(Math.max(0, nextItem.amount - total))} to go</span>
+          <span style={{ color: "#2e4a2e" }}> · ₹{fmt(toGo)} to go</span>
         </div>
       )}
       {!nextItem && (
