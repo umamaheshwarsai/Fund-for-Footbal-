@@ -100,13 +100,31 @@ function FootballProgress({ total, purchased }) {
   const pct = nextItem ? Math.min(100, (available / nextCost) * 100) : 100;
   const pos = Math.min(pct, 91);
 
-  const spreadPositions = [25, 52, 76];
-  const milestonePos = MILESTONES.map((m, i) => ({
-    ...m,
-    pct: spreadPositions[i],
-    purchased: !!purchased.find(p => p.id === m.id),
-    unlocked: total >= m.amount,
-  }));
+  // Dot positions are relative to the current progress segment.
+  // The fill goes from 0 → 100% representing spent → spent+nextCost.
+  // Each milestone dot sits at ((m.amount - spent) / nextCost) * 100 on that scale.
+  // Purchased dots go to the left (0%), future ones go proportionally right.
+  const milestonePos = MILESTONES.map((m) => {
+    const isPurchased = !!purchased.find(p => p.id === m.id);
+    const isNext = nextItem && nextItem.id === m.id;
+    // Position on the current fill scale
+    let dotPct;
+    if (isPurchased) {
+      dotPct = 0; // behind start — don't show on track
+    } else if (!nextItem) {
+      dotPct = 100;
+    } else {
+      // How far into the current segment is this milestone?
+      dotPct = Math.min(100, ((m.amount - spent) / nextCost) * 100);
+    }
+    return {
+      ...m,
+      dotPct,
+      isPurchased,
+      isNext,
+      unlocked: total >= m.amount,
+    };
+  }).filter(m => !m.isPurchased); // hide purchased dots from track
 
   return (
     <div style={{ padding: "18px 0 10px", userSelect: "none" }}>
@@ -139,25 +157,22 @@ function FootballProgress({ total, purchased }) {
           {/* Milestone markers */}
           {milestonePos.map((m, i) => (
             <div key={i} style={{
-              position: "absolute", left: `${m.pct}%`, top: "50%",
+              position: "absolute", left: `${Math.min(m.dotPct, 97)}%`, top: "50%",
               transform: "translate(-50%, -50%)", zIndex: 3,
             }}>
               <div style={{
                 width: 12, height: 12, borderRadius: "50%",
-                background: m.purchased ? "#888" : m.unlocked ? "#aaff44" : "#2e4a2e",
-                border: `2px solid ${m.purchased ? "#555" : m.unlocked ? "#aaff44" : "#1a2e1a"}`,
+                background: m.unlocked ? "#aaff44" : "#2e4a2e",
+                border: `2px solid ${m.unlocked ? "#aaff44" : "#1a2e1a"}`,
                 transition: "background 0.4s", margin: "0 auto",
-                // Strikethrough effect for purchased
-                boxShadow: m.purchased ? "inset 0 0 0 2px #555" : "none",
               }} />
               {/* Amount label below dot */}
               <div style={{
                 position: "absolute", top: 14, left: "50%",
                 transform: "translateX(-50%)",
                 fontSize: 8,
-                color: m.purchased ? "#555" : m.unlocked ? "#aaff44" : "#2e4a2e",
+                color: m.unlocked ? "#aaff44" : "#2e4a2e",
                 whiteSpace: "nowrap", fontWeight: 700, letterSpacing: 0.3,
-                textDecoration: m.purchased ? "line-through" : "none",
               }}>₹{m.amount >= 1000 ? (m.amount/1000)+"K" : m.amount}</div>
             </div>
           ))}
