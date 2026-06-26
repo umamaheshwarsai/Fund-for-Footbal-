@@ -10,9 +10,9 @@ const EMOJIS = ["⚽","🏆","🎯","💪","🔥","✨","👏","🌟","🎖️",
 
 // Milestones: { amount, emoji, label }
 const MILESTONES = [
-  { amount: 3000, emoji: "⚽", label: "1 Ball" },
-  { amount: 5000, emoji: "⚽⚽", label: "2 Balls" },
-  { amount: 6500, emoji: "👕", label: "Bibs" },
+  { id: "ball1", amount: 3000, cost: 3000, emoji: "⚽",   label: "1 Ball"  },
+  { id: "ball2", amount: 5000, cost: 2000, emoji: "⚽⚽", label: "2 Balls" },
+  { id: "bibs",  amount: 6500, cost: 1500, emoji: "👕",   label: "Bibs"    },
 ];
 
 async function fetchData() {
