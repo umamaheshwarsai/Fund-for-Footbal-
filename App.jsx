@@ -375,7 +375,7 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
   }
 
   function openGPay() {
-    window.open("gpay://upi/pay?pa=7013839578@okicici&pn=Uma&cu=INR", "_blank");
+    window.open("gpay://upi/pay?pa=umasaia123@okhdfcbank&pn=Uma&cu=INR", "_blank");
   }
 
   const iS = {
