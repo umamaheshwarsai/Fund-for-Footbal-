@@ -8,11 +8,11 @@ const JSONBIN_API_KEY = "$2a$10$5Ms12r9fbKUkzrmyLlxL.uqNxc3zrKcfICnPpTDM7kLYkBLy
 const GOAL_AMOUNT = 10000;
 const EMOJIS = ["⚽","🏆","🎯","💪","🔥","✨","👏","🌟","🎖️","💚"];
 
-// Milestones — cost is incremental (not cumulative) for progress bar logic
+// Milestones: { amount, emoji, label }
 const MILESTONES = [
-  { id: "ball1", amount: 3000, cost: 3000, emoji: "⚽",   label: "1 Ball"  },
-  { id: "ball2", amount: 5000, cost: 2000, emoji: "⚽⚽", label: "2 Balls" },
-  { id: "bibs",  amount: 6500, cost: 1500, emoji: "👕",   label: "Bibs"    },
+  { amount: 3000, emoji: "⚽", label: "1 Ball" },
+  { amount: 5000, emoji: "⚽⚽", label: "2 Balls" },
+  { amount: 6500, emoji: "👕", label: "Bibs" },
 ];
 
 async function fetchData() {
@@ -31,28 +31,25 @@ async function pushData(data) {
   });
 }
 
-function fmt(n) { return Number(n).toLocaleString("en-IN"); }
+function fmt(n) {
+  return Number(n).toLocaleString("en-IN");
+}
 
-// ── WhatsApp purchase status ──────────────────────────────────────────────
-function getPurchaseStatus(purchased, total) {
-  const done = MILESTONES.filter(m => purchased.find(p => p.id === m.id));
-  const next = MILESTONES.find(m => !purchased.find(p => p.id === m.id));
-  const spentOnPurchases = done.reduce((s, m) => s + m.cost, 0);
-  const available = Math.max(0, total - spentOnPurchases);
-
+// ── What can we buy? ───────────────────────────────────────────────────────
+function getWhatWeBought(total) {
+  const unlocked = MILESTONES.filter(m => total >= m.amount);
+  const next = MILESTONES.find(m => total < m.amount);
+  
   let lines = [];
-  if (done.length > 0) {
-    lines.push(`✅ *Purchased:* ${done.map(m => `${m.emoji} ${m.label}`).join(", ")}`);
-  }
-  if (next) {
-    const gap = Math.max(0, next.cost - available);
-    if (gap <= 0) {
-      lines.push(`🎯 Ready to buy: ${next.emoji} ${next.label}!`);
-    } else {
-      lines.push(`🎯 Next up: ${next.emoji} ${next.label} — ₹${fmt(gap)} more to go!`);
-    }
+  if (unlocked.length === 0) {
+    lines.push(`💸 ₹${fmt(MILESTONES[0].amount - total)} away from our first ${MILESTONES[0].emoji} ${MILESTONES[0].label}!`);
   } else {
-    lines.push(`🏆 All items purchased! Legend stuff 💚`);
+    lines.push(`✅ Unlocked: ${unlocked.map(m => `${m.emoji} ${m.label}`).join(", ")}`);
+    if (next) {
+      lines.push(`🎯 Next up: ${next.emoji} ${next.label} — just ₹${fmt(next.amount - total)} more!`);
+    } else {
+      lines.push(`🏆 We've unlocked everything! Legend stuff 💚`);
+    }
   }
   return lines.join("\n");
 }
@@ -85,43 +82,25 @@ function PitchBackground() {
   );
 }
 
-// ── Progress Track ─────────────────────────────────────────────────────────
-// Logic: purchased items are "behind" — bar shows progress toward NEXT item only.
-// e.g. Ball1 purchased (cost ₹3K), now bar is 0→₹2K for Ball2.
+// ── Progress Track ────────────────────────────────────────────────────────
+// Bar shows progress toward the NEXT unpurchased milestone only.
+// total is already net (donations - expenses), and purchase expenses are logged
+// separately, so total directly reflects available funds.
 function FootballProgress({ total, purchased }) {
-  const purchasedItems = MILESTONES.filter(m => purchased.find(p => p.id === m.id));
   const nextItem = MILESTONES.find(m => !purchased.find(p => p.id === m.id));
-
-  // Progress resets per milestone using INCREMENTAL cost.
-  // e.g. Ball1 costs ₹3K. Ball2 costs ₹2K extra (₹5K - ₹3K).
-  // Once Ball1 is purchased, bar goes 0 → ₹2K using money raised since then.
-  // "total" here is net (donations minus expenses), so it naturally reflects spending.
-  const purchasedCost = purchasedItems.reduce((s, m) => s + m.cost, 0);
   const nextCost = nextItem ? nextItem.cost : GOAL_AMOUNT;
-  // Money available toward next item = total raised minus what was spent on purchased items
-  const available = Math.max(0, total - purchasedCost);
-  const pct = Math.min(100, (available / nextCost) * 100);
+  // FIX 1: toGo = nextCost - total (total already net of purchase expenses)
+  const toGo = Math.max(0, nextCost - total);
+  const pct = Math.min(100, (total / nextCost) * 100);
   const pos = Math.min(pct, 91);
-  const toGo = Math.max(0, nextCost - available);
 
-  const milestonePos = MILESTONES.map((m) => {
-    const isPurchased = !!purchased.find(p => p.id === m.id);
-    const isNext = nextItem && nextItem.id === m.id;
-    let dotPct;
-    if (isPurchased) {
-      dotPct = 0;
-    } else if (!nextItem) {
-      dotPct = 100;
-    } else {
-      // Position relative to incremental range for next item only
-      dotPct = isNext ? 100 : Math.min(200, ((m.amount - (nextItem ? nextItem.amount - nextItem.cost : 0)) / nextCost) * 100);
-    }
-    return { ...m, dotPct, isPurchased, isNext, unlocked: total >= m.amount };
-  }).filter(m => !m.isPurchased);
+  // FIX 2: Only show ONE dot at 100% (end of bar) for the next item
+  // Show its incremental cost label, not cumulative amount
+  const activeMilestone = nextItem || null;
 
   return (
     <div style={{ padding: "18px 0 10px", userSelect: "none" }}>
-      {/* Next item label */}
+      {/* Saving for label */}
       {nextItem && (
         <div style={{ fontSize: 11, color: "#3a5a3a", marginBottom: 6, letterSpacing: 0.5 }}>
           Saving for: <span style={{ color: "#aaff44", fontWeight: 700 }}>{nextItem.emoji} {nextItem.label}</span>
@@ -133,12 +112,13 @@ function FootballProgress({ total, purchased }) {
       )}
 
       <div style={{ position: "relative", height: 90 }}>
+
         {/* Track */}
         <div style={{
           position: "absolute", bottom: 20, left: 24, right: 66,
           height: 7, background: "#1a2e1a", borderRadius: 10,
         }}>
-          {/* Fill — progress toward next item */}
+          {/* Fill */}
           <div style={{
             position: "absolute", left: 0, top: 0, bottom: 0,
             width: `${pos}%`,
@@ -147,28 +127,26 @@ function FootballProgress({ total, purchased }) {
             transition: "width 0.9s cubic-bezier(.23,1,.32,1)"
           }} />
 
-          {/* Milestone markers */}
-          {milestonePos.map((m, i) => (
-            <div key={i} style={{
-              position: "absolute", left: `${Math.min(m.dotPct, 97)}%`, top: "50%",
+          {/* Single dot at end for next milestone — FIX 2: shows only next item cost */}
+          {activeMilestone && (
+            <div style={{
+              position: "absolute", left: "97%", top: "50%",
               transform: "translate(-50%, -50%)", zIndex: 3,
             }}>
               <div style={{
-                width: 12, height: 12, borderRadius: "50%",
-                background: m.unlocked ? "#aaff44" : "#2e4a2e",
-                border: `2px solid ${m.unlocked ? "#aaff44" : "#1a2e1a"}`,
+                width: 10, height: 10, borderRadius: "50%",
+                background: pct >= 100 ? "#aaff44" : "#2e4a2e",
+                border: `2px solid ${pct >= 100 ? "#aaff44" : "#1a2e1a"}`,
                 transition: "background 0.4s", margin: "0 auto",
               }} />
-              {/* Amount label below dot */}
               <div style={{
                 position: "absolute", top: 14, left: "50%",
                 transform: "translateX(-50%)",
-                fontSize: 8,
-                color: m.unlocked ? "#aaff44" : "#2e4a2e",
+                fontSize: 8, color: pct >= 100 ? "#aaff44" : "#2e4a2e",
                 whiteSpace: "nowrap", fontWeight: 700, letterSpacing: 0.3,
-              }}>₹{m.amount >= 1000 ? (m.amount/1000)+"K" : m.amount}</div>
+              }}>₹{activeMilestone.cost >= 1000 ? (activeMilestone.cost/1000)+"K" : activeMilestone.cost}</div>
             </div>
-          ))}
+          )}
         </div>
 
         {/* Dribbling player */}
@@ -211,13 +189,13 @@ function FootballProgress({ total, purchased }) {
       <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
         {MILESTONES.map((m) => {
           const isPurchased = !!purchased.find(p => p.id === m.id);
-          const isUnlocked = total >= m.amount;
+          const isUnlocked = total >= m.cost && nextItem && nextItem.id === m.id ? false : isPurchased;
           return (
             <div key={m.id} style={{
               fontSize: 11, padding: "3px 10px", borderRadius: 20,
-              background: isPurchased ? "rgba(100,100,100,0.15)" : isUnlocked ? "rgba(170,255,68,0.15)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${isPurchased ? "#555" : isUnlocked ? "#aaff44" : "#1a2e1a"}`,
-              color: isPurchased ? "#666" : isUnlocked ? "#aaff44" : "#2e4a2e",
+              background: isPurchased ? "rgba(100,100,100,0.15)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${isPurchased ? "#555" : "#1a2e1a"}`,
+              color: isPurchased ? "#666" : "#2e4a2e",
               fontWeight: 600, transition: "all 0.4s",
               textDecoration: isPurchased ? "line-through" : "none",
             }}>{m.emoji} {m.label} {isPurchased ? "✓" : ""}</div>
@@ -230,7 +208,7 @@ function FootballProgress({ total, purchased }) {
 
 export default function App() {
   const [donations, setDonations] = useState([]);
-  const [purchased, setPurchased] = useState([]); // array of milestone ids
+  const [purchased, setPurchased] = useState([]);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(true);
@@ -238,10 +216,8 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [tab, setTab] = useState("log");
   const [celebrate, setCelebrate] = useState(false);
-  const [rain, setRain] = useState(null);
+  const [rain, setRain] = useState(null); // null | { emoji, count }
   const [suggestions, setSuggestions] = useState([]);
-  const [purchaseInputs, setPurchaseInputs] = useState({});
-  const [purchaseAmounts, setPurchaseAmounts] = useState({}); // milestoneId -> input value
   const [suggText, setSuggText] = useState("");
   const [suggName, setSuggName] = useState("");
 
@@ -278,20 +254,35 @@ export default function App() {
 
   const total = donations.reduce((s, d) => s + d.amount, 0);
 
+  const [purchaseInputs, setPurchaseInputs] = useState({});
+
   async function togglePurchased(milestoneId, amountSpent) {
     const milestone = MILESTONES.find(m => m.id === milestoneId);
     const alreadyPurchased = purchased.find(p => p.id === milestoneId);
-    const updated = alreadyPurchased
-      ? purchased.filter(p => p.id !== milestoneId)
-      : [...purchased, { id: milestoneId, amountSpent: parseFloat(amountSpent) || milestone.cost }];
-    setPurchased(updated);
-    await saveData(donations, updated, suggestions);
+    const amt = parseFloat(amountSpent) || milestone.cost;
+
     if (!alreadyPurchased) {
-      showToast(`${milestone.emoji} ${milestone.label} purchased for ₹${fmt(parseFloat(amountSpent) || milestone.cost)}! 🎉`);
+      // FIX 3: Auto-log expense entry for the purchase
+      const now = new Date();
+      const timeStr = now.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+      const expenseEntry = { id: Date.now(), name: `${milestone.emoji} ${milestone.label} purchased`, amount: -amt, time: timeStr, type: "expense" };
+      const updatedDonations = [...donations, expenseEntry];
+      const updatedPurchased = [...purchased, { id: milestoneId, amountSpent: amt }];
+      setDonations(updatedDonations);
+      setPurchased(updatedPurchased);
+      await saveData(updatedDonations, updatedPurchased, suggestions);
+      showToast(`${milestone.emoji} ${milestone.label} purchased for ₹${fmt(amt)}! 🎉`);
       setRain({ emoji: milestone.emoji, count: 30 });
       setTimeout(() => setRain(null), 3500);
     } else {
-      showToast(`${milestone.label} unmarked`);
+      // Undo: remove purchase and its auto-logged expense
+      const expenseName = `${milestone.emoji} ${milestone.label} purchased`;
+      const updatedDonations = donations.filter(d => d.name !== expenseName);
+      const updatedPurchased = purchased.filter(p => p.id !== milestoneId);
+      setDonations(updatedDonations);
+      setPurchased(updatedPurchased);
+      await saveData(updatedDonations, updatedPurchased, suggestions);
+      showToast(`${milestone.label} unmarked & expense removed`);
     }
   }
 
@@ -308,6 +299,8 @@ export default function App() {
     await saveData(updated, purchased, suggestions);
     setName(""); setAmount("");
     showToast(isExpense ? `₹${fmt(Math.abs(amt))} expense logged 📤` : `₹${fmt(amt)} from ${name.trim()} added! 🎉`);
+
+    // Check milestone unlocks
     const newTotal = prevTotal + amt;
     const justUnlocked = MILESTONES.find(m => prevTotal < m.amount && newTotal >= m.amount);
     if (justUnlocked) {
@@ -356,10 +349,12 @@ export default function App() {
   function shareWhatsApp() {
     const topDonors = [...donations]
       .filter(d => d.amount > 0)
-      .sort((a, b) => b.amount - a.amount).slice(0, 3)
-      .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`).join("\n");
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 3)
+      .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`)
+      .join("\n");
 
-    const purchaseStatus = getPurchaseStatus(purchased, total);
+    const whatWeBought = getWhatWeBought(total);
 
     const msg =
 `⚽ *Sundays' Boys* ⚽
@@ -367,7 +362,7 @@ export default function App() {
 
 💰 *Total raised: ₹${fmt(total)}*
 
-${purchaseStatus}
+${whatWeBought}
 ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
 ━━━━━━━━━━━━━━━━━━━
 💸 *Pay via GPay:* 7013839578 (Uma)
@@ -397,16 +392,22 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
   );
 
   return (
-    <div style={{ background: "#080d08", minHeight: "100vh", fontFamily: "'Segoe UI', system-ui, sans-serif", color: "#e8f5e8", position: "relative", overflow: "hidden" }}>
+    <div style={{
+      background: "#080d08", minHeight: "100vh",
+      fontFamily: "'Segoe UI', system-ui, sans-serif", color: "#e8f5e8",
+      position: "relative", overflow: "hidden",
+    }}>
       <PitchBackground />
       <div style={{ position: "fixed", inset: 0, zIndex: 0, background: "radial-gradient(ellipse at 50% 0%, rgba(8,20,8,0.7) 0%, rgba(8,13,8,0.92) 70%)" }} />
 
-      {/* Rain */}
+      {/* Milestone Rain */}
       {rain && (
         <div style={{ position: "fixed", inset: 0, zIndex: 90, pointerEvents: "none", overflow: "hidden" }}>
           {Array.from({ length: rain.count }).map((_, i) => (
             <div key={i} style={{
-              position: "absolute", left: `${Math.random() * 100}%`, top: "-40px",
+              position: "absolute",
+              left: `${Math.random() * 100}%`,
+              top: "-40px",
               fontSize: Math.random() * 14 + 16,
               animation: `rainFall ${Math.random() * 1.5 + 1.5}s linear ${Math.random() * 1.2}s forwards`,
               opacity: 0,
@@ -429,20 +430,35 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
 
       {/* Toast */}
       {toast && (
-        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: toast.type === "error" ? "#7f1d1d" : "#14532d", color: "#fff", padding: "10px 24px", borderRadius: 30, fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: "0 4px 24px rgba(0,0,0,0.5)", animation: "slideDown 0.25s ease", whiteSpace: "nowrap" }}>{toast.msg}</div>
+        <div style={{
+          position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
+          background: toast.type === "error" ? "#7f1d1d" : "#14532d",
+          color: "#fff", padding: "10px 24px", borderRadius: 30,
+          fontSize: 13, fontWeight: 600, zIndex: 999,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+          animation: "slideDown 0.25s ease", whiteSpace: "nowrap"
+        }}>{toast.msg}</div>
       )}
 
       <div style={{ maxWidth: 430, margin: "0 auto", padding: "16px 16px 80px", position: "relative", zIndex: 1 }}>
 
         {/* Header */}
         <div style={{ textAlign: "center", padding: "26px 0 12px" }}>
-          <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: 5, textTransform: "uppercase", color: "#aaff44", textShadow: "0 0 20px rgba(170,255,68,0.4)" }}>Sundays' Boys</div>
-          <div style={{ fontSize: 12, color: "#3a5a3a", marginTop: 5 }}>Contribute for better ball and bibs</div>
+          <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: 5, textTransform: "uppercase", color: "#aaff44", textShadow: "0 0 20px rgba(170,255,68,0.4)" }}>
+            Sundays' Boys
+          </div>
+          <div style={{ fontSize: 12, color: "#3a5a3a", marginTop: 5 }}>
+            Contribute for better ball and bibs
+          </div>
           {saving && <div style={{ fontSize: 10, color: "#2e4a2e", letterSpacing: 1, textTransform: "uppercase", marginTop: 6 }}>syncing…</div>}
         </div>
 
         {/* Fund card */}
-        <div style={{ background: "rgba(15,26,15,0.85)", backdropFilter: "blur(10px)", border: "1px solid #1a2e1a", borderRadius: 24, padding: "20px 20px 16px", marginBottom: 12 }}>
+        <div style={{
+          background: "rgba(15,26,15,0.85)", backdropFilter: "blur(10px)",
+          border: "1px solid #1a2e1a", borderRadius: 24, padding: "20px 20px 16px", marginBottom: 12
+        }}>
+          {/* Total */}
           <div style={{ marginBottom: 4 }}>
             <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "#2e4a2e", marginBottom: 4 }}>Total Raised</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
@@ -451,6 +467,7 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
             </div>
           </div>
 
+          {/* 👟 Progress with milestones */}
           <FootballProgress total={total} purchased={purchased} />
 
           {/* Purchase checkboxes */}
@@ -461,29 +478,12 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
                 const purchasedEntry = purchased.find(p => p.id === m.id);
                 const isPurchased = !!purchasedEntry;
                 return (
-                  <div key={m.id} style={{
-                    background: isPurchased ? "rgba(100,100,100,0.1)" : "rgba(255,255,255,0.02)",
-                    border: `1px solid ${isPurchased ? "#444" : "#1a2e1a"}`,
-                    borderRadius: 10, padding: "10px 14px", transition: "all 0.2s",
-                  }}>
-                    {/* Top row: label + unmark */}
+                  <div key={m.id} style={{ background: isPurchased ? "rgba(100,100,100,0.1)" : "rgba(255,255,255,0.02)", border: `1px solid ${isPurchased ? "#444" : "#1a2e1a"}`, borderRadius: 10, padding: "10px 14px", transition: "all 0.2s" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: 6,
-                        background: isPurchased ? "#aaff44" : "transparent",
-                        border: `2px solid ${isPurchased ? "#aaff44" : "#2a3a2a"}`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 12, flexShrink: 0, transition: "all 0.2s",
-                      }}>{isPurchased ? "✓" : ""}</div>
+                      <div style={{ width: 20, height: 20, borderRadius: 6, background: isPurchased ? "#aaff44" : "transparent", border: `2px solid ${isPurchased ? "#aaff44" : "#2a3a2a"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0, transition: "all 0.2s" }}>{isPurchased ? "✓" : ""}</div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: isPurchased ? "#666" : "#e8f5e8", textDecoration: isPurchased ? "line-through" : "none" }}>
-                          {m.emoji} {m.label}
-                        </div>
-                        {isPurchased && (
-                          <div style={{ fontSize: 10, color: "#aaff44", marginTop: 1 }}>
-                            Purchased for ₹{fmt(purchasedEntry.amountSpent)} ✓
-                          </div>
-                        )}
+                        <div style={{ fontSize: 13, fontWeight: 600, color: isPurchased ? "#666" : "#e8f5e8", textDecoration: isPurchased ? "line-through" : "none" }}>{m.emoji} {m.label}</div>
+                        {isPurchased && <div style={{ fontSize: 10, color: "#aaff44", marginTop: 1 }}>Purchased for ₹{fmt(purchasedEntry.amountSpent)} ✓</div>}
                       </div>
                       {isPurchased && (
                         <button onClick={() => togglePurchased(m.id)} style={{ background: "none", border: "1px solid #333", borderRadius: 6, color: "#666", fontSize: 10, cursor: "pointer", padding: "3px 8px" }}
@@ -491,33 +491,16 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
                           onMouseLeave={e => e.currentTarget.style.color = "#666"}>Undo</button>
                       )}
                     </div>
-                    {/* Amount input row — only when not yet purchased */}
                     {!isPurchased && (
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         <div style={{ position: "relative", flex: 1 }}>
                           <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#3a5a3a", fontSize: 12, fontWeight: 700 }}>₹</span>
-                          <input
-                            type="number"
-                            placeholder="Enter amount paid"
-                            value={purchaseInputs[m.id] || ""}
+                          <input type="number" placeholder="Enter amount paid" value={purchaseInputs[m.id] || ""}
                             onChange={e => setPurchaseInputs(prev => ({ ...prev, [m.id]: e.target.value }))}
-                            style={{ width: "100%", background: "rgba(8,13,8,0.8)", border: "1px solid #1a2e1a", borderRadius: 8, color: "#e8f5e8", fontFamily: "inherit", fontSize: 13, padding: "8px 10px 8px 24px", boxSizing: "border-box" }}
-                          />
+                            style={{ width: "100%", background: "rgba(8,13,8,0.8)", border: "1px solid #1a2e1a", borderRadius: 8, color: "#e8f5e8", fontFamily: "inherit", fontSize: 13, padding: "8px 10px 8px 24px", boxSizing: "border-box" }} />
                         </div>
-                        <button
-                          onClick={() => {
-                            const amt = purchaseInputs[m.id];
-                            if (!amt || parseFloat(amt) <= 0) { return; }
-                            togglePurchased(m.id, amt);
-                            setPurchaseInputs(prev => ({ ...prev, [m.id]: "" }));
-                          }}
-                          style={{
-                            background: purchaseInputs[m.id] ? "linear-gradient(135deg, #00c853, #aaff44)" : "#1a2e1a",
-                            color: purchaseInputs[m.id] ? "#000" : "#3a5a3a",
-                            border: "none", borderRadius: 8, padding: "8px 12px",
-                            fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
-                            transition: "all 0.2s",
-                          }}>✓ Mark Bought</button>
+                        <button onClick={() => { const amt = purchaseInputs[m.id]; if (!amt || parseFloat(amt) <= 0) return; togglePurchased(m.id, amt); setPurchaseInputs(prev => ({ ...prev, [m.id]: "" })); }}
+                          style={{ background: purchaseInputs[m.id] ? "linear-gradient(135deg, #00c853, #aaff44)" : "#1a2e1a", color: purchaseInputs[m.id] ? "#000" : "#3a5a3a", border: "none", borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s" }}>✓ Mark Bought</button>
                       </div>
                     )}
                   </div>
@@ -542,18 +525,33 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
 
         {/* CTAs */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div onClick={openGPay} style={{ background: "linear-gradient(135deg, #1a3a2a, #0f2a1a)", borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", border: "1px solid #1a3a1a" }}
+          {/* GPay */}
+          <div onClick={openGPay} style={{
+            background: "linear-gradient(135deg, #1a3a2a, #0f2a1a)",
+            borderRadius: 14, padding: "12px 14px",
+            display: "flex", alignItems: "center", gap: 10,
+            cursor: "pointer", border: "1px solid #1a3a1a",
+          }}
             onMouseEnter={e => e.currentTarget.style.filter = "brightness(1.2)"}
-            onMouseLeave={e => e.currentTarget.style.filter = "none"}>
+            onMouseLeave={e => e.currentTarget.style.filter = "none"}
+          >
             <div style={{ fontSize: 22 }}>💸</div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700 }}>Pay via GPay</div>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>7013839578</div>
             </div>
           </div>
-          <div onClick={shareWhatsApp} style={{ background: "linear-gradient(135deg, #064e45, #0a7a6e)", borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", border: "1px solid #0d6b60" }}
+
+          {/* WhatsApp */}
+          <div onClick={shareWhatsApp} style={{
+            background: "linear-gradient(135deg, #064e45, #0a7a6e)",
+            borderRadius: 14, padding: "12px 14px",
+            display: "flex", alignItems: "center", gap: 10,
+            cursor: "pointer", border: "1px solid #0d6b60",
+          }}
             onMouseEnter={e => e.currentTarget.style.filter = "brightness(1.15)"}
-            onMouseLeave={e => e.currentTarget.style.filter = "none"}>
+            onMouseLeave={e => e.currentTarget.style.filter = "none"}
+          >
             <div style={{ fontSize: 22 }}>💬</div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700 }}>Share Update</div>
@@ -565,7 +563,12 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
         {/* Tabs */}
         <div style={{ display: "flex", background: "rgba(15,26,15,0.85)", borderRadius: 12, padding: 4, marginBottom: 12, border: "1px solid #1a2e1a" }}>
           {[{ key: "log", label: "➕ Log Entry" }, { key: "donors", label: `📋 Ledger (${donations.length})` }, { key: "suggest", label: `💡 Ideas (${suggestions.length})` }].map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, padding: "9px 6px", background: tab === t.key ? "#aaff44" : "transparent", color: tab === t.key ? "#000" : "#3a5a3a", border: "none", borderRadius: 9, fontWeight: 700, fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>{t.label}</button>
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              flex: 1, padding: "9px 8px",
+              background: tab === t.key ? "#aaff44" : "transparent",
+              color: tab === t.key ? "#000" : "#3a5a3a",
+              border: "none", borderRadius: 9, fontWeight: 700, fontSize: 12, cursor: "pointer", transition: "all 0.2s"
+            }}>{t.label}</button>
           ))}
         </div>
 
@@ -605,7 +608,12 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
               : [...donations].reverse().map((d, ri) => {
                   const oi = donations.length - 1 - ri;
                   return (
-                    <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(15,26,15,0.85)", backdropFilter: "blur(8px)", border: `1px solid ${d.amount < 0 ? "#3a1a1a" : "#1a2e1a"}`, borderRadius: 12, padding: "11px 14px", marginBottom: 8 }}>
+                    <div key={d.id} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      background: "rgba(15,26,15,0.85)", backdropFilter: "blur(8px)",
+                      border: `1px solid ${d.amount < 0 ? "#3a1a1a" : "#1a2e1a"}`,
+                      borderRadius: 12, padding: "11px 14px", marginBottom: 8
+                    }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <div style={{ width: 34, height: 34, background: d.amount < 0 ? "rgba(127,29,29,0.4)" : "#1a2e1a", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, border: d.amount < 0 ? "1px solid #7f1d1d" : "none" }}>
                           {d.amount < 0 ? "📤" : EMOJIS[oi % EMOJIS.length]}
@@ -627,13 +635,11 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
             }
           </div>
         )}
-
         {tab === "suggest" && (
           <div>
             <div style={{ background: "rgba(15,26,15,0.85)", backdropFilter: "blur(10px)", border: "1px solid #1a2e1a", borderRadius: 20, padding: 18, marginBottom: 12 }}>
               <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "#2e4a2e", marginBottom: 12 }}>Drop a suggestion</div>
-              <textarea value={suggText} onChange={e => setSuggText(e.target.value)}
-                placeholder="e.g. Nike size 5 match ball, Decathlon bibs..." maxLength={120} rows={2}
+              <textarea value={suggText} onChange={e => setSuggText(e.target.value)} placeholder="e.g. Nike size 5 match ball, Decathlon bibs..." maxLength={120} rows={2}
                 style={{ width: "100%", background: "rgba(8,13,8,0.8)", border: "1px solid #1a2e1a", borderRadius: 10, color: "#e8f5e8", fontFamily: "inherit", fontSize: 14, padding: "11px 12px", resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
               <input value={suggName} onChange={e => setSuggName(e.target.value)} placeholder="Your name (optional)" maxLength={20}
                 style={{ width: "100%", background: "rgba(8,13,8,0.8)", border: "1px solid #1a2e1a", borderRadius: 10, color: "#e8f5e8", fontFamily: "inherit", fontSize: 14, padding: "11px 12px", marginBottom: 10, boxSizing: "border-box" }} />
@@ -641,14 +647,12 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
             </div>
             {suggestions.length === 0
               ? <div style={{ textAlign: "center", color: "#3a5a3a", padding: "40px 20px", background: "rgba(15,26,15,0.85)", borderRadius: 16, border: "1px solid #1a2e1a" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>💡</div>
-                  <div>No ideas yet — be the first!</div>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>💡</div><div>No ideas yet — be the first!</div>
                 </div>
               : [...suggestions].sort((a, b) => (b.votes || 0) - (a.votes || 0)).map(s => (
-                <div key={s.id} style={{ background: "rgba(15,26,15,0.85)", backdropFilter: "blur(8px)", border: "1px solid #1a2e1a", borderRadius: 14, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div key={s.id} style={{ background: "rgba(15,26,15,0.85)", border: "1px solid #1a2e1a", borderRadius: 14, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "flex-start", gap: 10 }}>
                   <button onClick={() => voteSuggestion(s.id)} style={{ background: "#1a2e1a", border: "1px solid #2a4a2a", borderRadius: 10, color: "#aaff44", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "6px 8px", minWidth: 40, textAlign: "center", flexShrink: 0 }}>
-                    <div style={{ fontSize: 14 }}>👍</div>
-                    <div>{s.votes || 0}</div>
+                    <div style={{ fontSize: 14 }}>👍</div><div>{s.votes || 0}</div>
                   </button>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, color: "#e8f5e8", lineHeight: 1.4 }}>{s.text}</div>
@@ -667,6 +671,8 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
       <style>{`
         @keyframes playerRun { 0%{transform:scaleX(1)} 50%{transform:scaleX(-1)} }
         @keyframes ballRoll { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        @keyframes rainFall { 0%{opacity:1;transform:translateY(0) rotate(0deg)} 100%{opacity:0.3;transform:translateY(110vh) rotate(360deg)} }
+        @keyframes ballRoll { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
         @keyframes ballBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
         @keyframes rainFall { 0%{opacity:1;transform:translateY(0) rotate(0deg)} 100%{opacity:0.3;transform:translateY(110vh) rotate(360deg)} }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
@@ -676,6 +682,7 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
         input::placeholder { color: #2a3a2a; }
         textarea::placeholder { color: #2a3a2a; }
         input:focus, textarea:focus { outline: none; border-color: #aaff44 !important; }
+        input:focus { outline: none; border-color: #aaff44 !important; }
       `}</style>
     </div>
   );
