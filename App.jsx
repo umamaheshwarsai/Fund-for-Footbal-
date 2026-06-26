@@ -220,6 +220,7 @@ export default function App() {
   const [suggestions, setSuggestions] = useState([]);
   const [suggText, setSuggText] = useState("");
   const [suggName, setSuggName] = useState("");
+  const [purchaseInputs, setPurchaseInputs] = useState({});
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -254,7 +255,6 @@ export default function App() {
 
   const total = donations.reduce((s, d) => s + d.amount, 0);
 
-  const [purchaseInputs, setPurchaseInputs] = useState({});
 
   async function togglePurchased(milestoneId, amountSpent) {
     const milestone = MILESTONES.find(m => m.id === milestoneId);
