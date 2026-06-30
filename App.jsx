@@ -36,20 +36,24 @@ function fmt(n) {
 }
 
 // ── What can we buy? ───────────────────────────────────────────────────────
-function getWhatWeBought(total) {
-  const unlocked = MILESTONES.filter(m => total >= m.amount);
-  const next = MILESTONES.find(m => total < m.amount);
-  
+// Purchase-aware status: shows what's been bought (using `purchased` array) and what's next.
+function getPurchaseStatus(purchased, total) {
+  const done = MILESTONES.filter(m => purchased.find(p => p.id === m.id));
+  const next = MILESTONES.find(m => !purchased.find(p => p.id === m.id));
+
   let lines = [];
-  if (unlocked.length === 0) {
-    lines.push(`💸 ₹${fmt(MILESTONES[0].amount - total)} away from our first ${MILESTONES[0].emoji} ${MILESTONES[0].label}!`);
-  } else {
-    lines.push(`✅ Unlocked: ${unlocked.map(m => `${m.emoji} ${m.label}`).join(", ")}`);
-    if (next) {
-      lines.push(`🎯 Next up: ${next.emoji} ${next.label} — just ₹${fmt(next.amount - total)} more!`);
+  if (done.length > 0) {
+    lines.push(`✅ *Purchased:* ${done.map(m => `${m.emoji} ${m.label}`).join(", ")}`);
+  }
+  if (next) {
+    const gap = Math.max(0, next.cost - total);
+    if (gap <= 0) {
+      lines.push(`🎯 Ready to buy: ${next.emoji} ${next.label}!`);
     } else {
-      lines.push(`🏆 We've unlocked everything! Legend stuff 💚`);
+      lines.push(`🎯 ₹${fmt(gap)} away from ${next.emoji} ${next.label}!`);
     }
+  } else {
+    lines.push(`🏆 All items purchased! Legend stuff 💚`);
   }
   return lines.join("\n");
 }
@@ -354,15 +358,15 @@ export default function App() {
       .map((d, i) => `${["🥇","🥈","🥉"][i]} ${d.name} — ₹${fmt(d.amount)}`)
       .join("\n");
 
-    const whatWeBought = getWhatWeBought(total);
+    const purchaseStatus = getPurchaseStatus(purchased, total);
 
     const msg =
 `⚽ *Sundays' Boys* ⚽
 💚 _Contribute for better ball and bibs_
 
-💰 *Total raised: ₹${fmt(total)}*
+💰 *Current funds: ₹${fmt(total)}*
 
-${whatWeBought}
+${purchaseStatus}
 ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
 ━━━━━━━━━━━━━━━━━━━
 💸 *Pay via GPay:* 7013839578 (Uma)
@@ -375,7 +379,7 @@ ${topDonors ? `\n🌟 *Top Ballers*\n${topDonors}\n` : ""}
   }
 
   function openGPay() {
-    window.open("gpay://upi/pay?pa=umasaia123@okhdfcbank&pn=Uma&cu=INR", "_blank");
+    window.open("gpay://upi/pay?pa=7013839578@okicici&pn=Uma&cu=INR", "_blank");
   }
 
   const iS = {
